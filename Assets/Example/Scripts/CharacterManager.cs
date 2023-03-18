@@ -19,7 +19,7 @@ public class CharacterManager : MonoBehaviour
     {
         foreach (var i in FindObjectsOfType<RigidbodyCharacterController>())
         {
-            i.Move(new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")));
+            i.MoveCameraRelative(new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")));
             if (Input.GetButtonDown("Jump") && i.m_isGrounded) i.Jump();
         }
     }
