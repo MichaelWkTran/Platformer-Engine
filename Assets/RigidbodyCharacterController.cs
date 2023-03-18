@@ -8,32 +8,30 @@ using UnityEditor;
 [RequireComponent(typeof(CapsuleCollider), typeof(Rigidbody))]
 public class RigidbodyCharacterController : MonoBehaviour
 {
-    //Character Variables
+    //Movement Variables
     [Tooltip("The speed of the character when moving")] public float m_speed = 10.0f;
     [Tooltip("How fast would the character rotate to the desired direction")] public float m_turnRate = 10.0f;
     [Tooltip("The acceleration of the character when moving")] public float m_acceleration = 10.0f;
-    [Tooltip("The acceleration of the character when moving against their current velocity")] public float m_reverseAcceleration = 10.0f;
+    [Tooltip("The acceleration of the character when moving against their current velocity")] public float m_brakingAcceleration = 10.0f;
     [Tooltip("The deceleration of the character when returning to idle")] public float m_idleDeceleration = 10.0f;
 
+    //Slope Variables
     [Tooltip("The angle of a slope from which the character could walk on")] public float m_slopeLimit = 45.0f;
 
+    //Jump & Grounded Variables
     [Tooltip("How high should the character jump")] public float m_jumpHeight = 2.0f;
     [Tooltip("How fast the player would fall when not on the ground")] public float m_gravity = 9.18f;
-
     public bool m_isGrounded { get; private set; } //Whether the character is on the ground
     [Tooltip("What layer should the character be standing on")] public LayerMask m_groundLayers = Physics.AllLayers;
 
-    protected float m_moveInputMagnitude; //How far would the 
-    protected Vector2 m_desiredMoveDir; //The desired direction the character would be moving towards
-    protected float m_turn = 0.0f; //How much as the player rotated since the previous frame
-    public bool IsMovingWithVelocity //Whether the player is moving with or against their current velocity
-    {
-        get { return m_turn > -90.0f && m_turn < 90.0f && m_desiredMoveDir.magnitude > 0.0f; }
-    }
-
+    //Miscellaneous variables
     [Serializable] public struct Advanced
     {
-        [Tooltip("The amount of force on the character when grounded. Use to make the character 'stick' to the ground")] public float m_groundForce;
+        [Tooltip("The gravity applied to the character when they are jumping. If this is set to 0, then the character will use the default character gravity")]
+            public float m_jumpGravity;
+        
+        [Tooltip("The amount of force on the character when grounded. Use to make the character 'stick' to the ground")]
+            public float m_groundForce;
     }
     public Advanced m_advanced;
 
@@ -52,6 +50,14 @@ public class RigidbodyCharacterController : MonoBehaviour
     [SerializeField] Info m_info;
 #endif
 
+    protected float m_moveInputMagnitude; //How far would the 
+    protected Vector2 m_desiredMoveDir; //The desired direction the character would be moving towards
+    protected float m_turn = 0.0f; //How much as the player rotated since the previous frame
+    public bool IsBraking //Whether the player is moving with or against their current velocity
+    {
+        get { return m_turn > -90.0f && m_turn < 90.0f && m_desiredMoveDir.magnitude > 0.0f; }
+    }
+
     //Components
     protected CapsuleCollider m_collider;
     protected Rigidbody m_rigidbody;
@@ -69,8 +75,26 @@ public class RigidbodyCharacterController : MonoBehaviour
         Vector3 Vec2ToVec3XZ(Vector2 _vector) { return new Vector3(_vector.x, 0.0f, _vector.y); }
 
         //Apply Gravity
-        if (!m_isGrounded) m_rigidbody.AddForce(Vector3.down * m_gravity, ForceMode.Acceleration);
-        else if (m_advanced.m_groundForce != 0) m_rigidbody.AddForce(Vector3.down * m_advanced.m_groundForce, ForceMode.Acceleration);
+        if (!m_isGrounded)
+        {
+            //If the character is moving upwards and jump gravity > 0, apply jump gravity
+            //Otherwise, apply default gravity
+            m_rigidbody.AddForce
+            (
+                Vector3.down *
+                (
+                    m_rigidbody.velocity.y > 0.0f && m_advanced.m_jumpGravity > 0 ?
+                        m_advanced.m_jumpGravity :
+                        m_gravity
+                ),
+                ForceMode.Acceleration
+           );
+        }
+        //Apply Ground Force
+        else if (m_advanced.m_groundForce != 0)
+        {
+            m_rigidbody.AddForce(Vector3.down * m_advanced.m_groundForce, ForceMode.Acceleration);
+        }
 
         //Get current acceleration/deceleration
         float currentAcceleration;
@@ -78,7 +102,7 @@ public class RigidbodyCharacterController : MonoBehaviour
         {
             //If the character is moving, then choose the acceleration
             //based on whether they are moving with or against velocity
-            currentAcceleration = IsMovingWithVelocity ? m_acceleration : m_reverseAcceleration;
+            currentAcceleration = IsBraking ? m_acceleration : m_brakingAcceleration;
         }
         else
         {
@@ -176,7 +200,7 @@ public class RigidbodyCharacterController : MonoBehaviour
     {
         //Make the player jump
         m_rigidbody.velocity = new Vector3(m_rigidbody.velocity.x,
-                Mathf.Sqrt(2.0f * m_gravity * m_jumpHeight),
+                Mathf.Sqrt(2.0f * (m_advanced.m_jumpGravity > 0 ? m_advanced.m_jumpGravity : m_gravity) * m_jumpHeight),
                 m_rigidbody.velocity.z);
     }
     #endregion
